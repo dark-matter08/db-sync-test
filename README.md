@@ -65,7 +65,21 @@ curl http://localhost:8000/health | jq
 curl http://localhost:8000/stats
 ```
 
-### 3. Access Management Interfaces
+### 3. Run Demo Script (Recommended)
+
+```bash
+# Run the comprehensive demo script to seed data and test all features
+./demo.sh
+```
+
+This script will:
+- ✅ Create sample users, posts, comments, and categories
+- ✅ Test all API endpoints (CRUD operations)
+- ✅ Verify real-time replication between databases
+- ✅ Display statistics and health checks
+- ✅ Demonstrate update and delete operations
+
+### 4. Access Management Interfaces
 
 - **API Documentation**: http://localhost:8000
 - **Source DB (Prisma Studio)**: http://localhost:8010
