@@ -1,0 +1,85 @@
+# Multi-Target PostgreSQL Logical Replication Configuration Example
+# This demonstrates replicating from one source to multiple target databases
+
+replication:
+  publication_name: "multi_target_publication"
+  
+  # Source database (publisher)
+  source:
+    host: "production-db.company.com"
+    port: 5432
+    user: "replication_user"
+    password: "secure_password"
+    database: "production_db"
+  
+  # Multiple target databases (subscribers)
+  targets:
+    # Development environment replica - needs all tables for testing
+    - name: "dev_replica"
+      subscription_name: "dev_subscription"
+      host: "dev-db.company.com"
+      port: 5432
+      user: "dev_user"
+      password: "dev_password"
+      database: "dev_db"
+      tables:
+        - "users"
+        - "orders" 
+        - "products"
+        - "transactions"
+        - "audit_logs"
+      settings:
+        enable_initial_sync: true
+        disable_triggers_during_sync: true
+        max_wait_attempts: 20
+    
+    # Analytics warehouse replica - only needs business data
+    - name: "analytics_replica" 
+      subscription_name: "analytics_subscription"
+      host: "analytics-db.company.com"
+      port: 5433
+      user: "analytics_user"
+      password: "analytics_password"
+      database: "analytics_warehouse"
+      tables:
+        - "users"
+        - "orders"
+        - "products"
+        - "transactions"
+        # Note: audit_logs excluded from analytics
+      settings:
+        enable_initial_sync: false  # Don't sync existing data
+        disable_triggers_during_sync: false
+        max_wait_attempts: 60  # Longer timeout for analytics
+    
+    # Backup replica - only needs critical user and order data
+    - name: "backup_replica"
+      subscription_name: "backup_subscription"
+      host: "backup-db.company.com"
+      port: 5432
+      user: "backup_user"
+      password: "backup_password"
+      database: "backup_db"
+      tables:
+        - "users"
+        - "orders"
+        # Note: products, transactions, and audit_logs excluded from backup
+      settings:
+        enable_initial_sync: true
+        disable_triggers_during_sync: true
+        max_wait_attempts: 45
+  
+  # Global default tables (used if target doesn't specify its own tables)
+  tables:
+    - "users"
+    - "orders"
+    - "products"
+    - "transactions"
+    - "audit_logs"
+  
+  # Global default settings
+  settings:
+    max_wait_attempts: 30
+    wait_interval_seconds: 5
+    enable_initial_sync: true
+    disable_triggers_during_sync: true

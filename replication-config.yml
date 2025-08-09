@@ -1,0 +1,60 @@
+# PostgreSQL Logical Replication Configuration
+# This file defines the source and target databases and tables for replication
+# Now supports multiple target databases
+
+replication:
+  publication_name: "my_publication"
+  
+  # Source database (publisher)
+  source:
+    host: "postgres1"
+    port: 5432
+    user: "user1"
+    password: "pass1"
+    database: "db1"
+  
+  # Multiple target databases (subscribers)
+  targets:
+    - name: "primary_replica"
+      subscription_name: "my_subscription"
+      host: "postgres2"
+      port: 5432
+      user: "user2"
+      password: "pass2"
+      database: "db2"
+      # Optional: target-specific settings
+      settings:
+        enable_initial_sync: true
+        disable_triggers_during_sync: true
+        
+      tables:
+        - "User"
+        - "Post"
+        - "Comment"
+        - "Category"
+    
+    # Example of additional target
+    # - name: "analytics_replica"
+    #   subscription_name: "analytics_subscription"
+    #   host: "analytics-db"
+    #   port: 5432
+    #   user: "analytics_user"
+    #   password: "analytics_pass"
+    #   database: "analytics_db"
+    #   settings:
+    #     enable_initial_sync: false
+    #     disable_triggers_during_sync: false
+  
+  # Global default tables (used if target doesn't specify its own tables)
+  tables:
+    - "User"
+    - "Post"
+    - "Comment"
+    - "Category"
+  
+  # Global settings (can be overridden per target)
+  settings:
+    max_wait_attempts: 30
+    wait_interval_seconds: 5
+    enable_initial_sync: true
+    disable_triggers_during_sync: true

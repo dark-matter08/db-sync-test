@@ -1,0 +1,152 @@
+services:
+  postgres1:
+    image: postgres:16
+    container_name: postgres1
+    environment:
+      POSTGRES_USER: user1
+      POSTGRES_PASSWORD: pass1
+      POSTGRES_DB: db1
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres1_data:/var/lib/postgresql/data
+      - ./pg_hba1.conf:/etc/postgresql/pg_hba.conf
+    command: >
+      postgres -c wal_level=logical -c max_wal_senders=10 -c max_replication_slots=10
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U user1 -d db1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  postgres2:
+    image: postgres:16
+    container_name: postgres2
+    environment:
+      POSTGRES_USER: user2
+      POSTGRES_PASSWORD: pass2
+      POSTGRES_DB: db2
+    depends_on:
+      postgres1:
+        condition: service_healthy
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres2_data:/var/lib/postgresql/data
+      - ./pg_hba2.conf:/etc/postgresql/pg_hba.conf
+    command: >
+      postgres -c wal_level=logical -c max_wal_senders=10 -c max_replication_slots=10
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U user2 -d db2']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  db1-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "npx prisma migrate deploy && npx prisma generate && npx prisma studio"
+    depends_on:
+      postgres1:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://user1:pass1@postgres1:5432/db1?sslmode=disable
+    volumes:
+      - ./prisma:/app/prisma
+    ports:
+      - '8010:5555'
+    networks:
+      - app-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:5555']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  db2-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "npx prisma migrate deploy && npx prisma generate && npx prisma studio"
+    depends_on:
+      postgres2:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://user2:pass2@postgres2:5432/db2?sslmode=disable
+    volumes:
+      - ./prisma:/app/prisma
+    ports:
+      - '8020:5555'
+    networks:
+      - app-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:5555']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  api-backend:
+    container_name: api-backend
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: sh -c "npx prisma generate && npx nodemon -x 'npx ts-node index.ts'"
+    depends_on:
+      db1-manager:
+        condition: service_healthy
+      db2-manager:
+        condition: service_healthy
+    volumes:
+      - ./index.ts:/app/index.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./generated:/app/generated
+      - ./prisma:/app/prisma
+    ports:
+      - '8000:3000'
+    environment:
+      - DATABASE_URL=postgresql://user1:pass1@postgres1:5432/db1?sslmode=disable
+    networks:
+      - app-network
+
+  postgres-replica:
+    image: darkmatter08/postgres-replica:latest
+    container_name: postgres-replica
+    depends_on:
+      db1-manager:
+        condition: service_healthy
+      db2-manager:
+        condition: service_healthy
+    volumes:
+      # Mount your configuration file
+      - ./replication-config.yml:/config/replication-config.yml:ro
+    environment:
+      # Optional: Specify config file path explicitly
+      CONFIG_FILE: '/config/replication-config.yml'
+      # Health check server port
+      PORT: 3000
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres1_data:
+  postgres2_data:
+networks:
+  app-network:
+    driver: bridge
